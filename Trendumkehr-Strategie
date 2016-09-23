@@ -1,0 +1,86 @@
+Trend <- function(a, alpha, beta, p, T, Title, StartDatum){
+  
+# Initiieren
+x <- numeric(3)
+
+# Quantmod aufrufen
+require(quantmod)
+
+# Preise
+X <- getSymbols(Title, from = as.Date(StartDatum), auto.assign = FALSE)
+opening <- as.vector(Op(X))
+closing <- as.vector(Cl(X))
+high <- as.vector(Hi(X))
+low <- as.vector(Lo(X))
+
+# Unterer Schatten
+US <- pmin(opening, closing) - low
+
+# Rote und Grüne Tage (Rot = -1, Grün = +1), entsprich bearish bzw. bullish candle sticks
+Col <- sign(closing - opening)
+
+# Gesamtlänge der Kerzen
+G <- high - low
+
+# Hammerstärke = Verhältnis des unteren Schatten zur Gesamtlänge der Kerze
+USG <- na.omit(US/G)
+
+# Vektor mit den Indizes der starken Hammer
+Indizes <- which(USG >= p)
+
+# Anzahl starker Hammer
+n <- length(Indizes)
+
+# Falls letzter Tag ein Hammer ist, weglassen
+if(Indizes[n] == length(closing)) {Indizes <- Indizes[-n]; n <- n-1}
+
+# Anzahl roter Tage vor jedem starken Hammer
+rotetage <- numeric(n)
+
+for(i in 2:n) {
+  k = 1
+  while((Col[Indizes[i]-k]) == -1) {rotetage[i] <- rotetage[i]+1; k <- k+1; if (k >= Indizes[i]) break}
+}
+  
+
+# Ist Anzahl vorheriger rote Tage mindestens a?
+R <- (rotetage >= a)
+
+# Liegt der Körper von B(=Kerze nache Hammer) oberhalb des Körpers des Hammers?
+Ober <- pmin(opening[Indizes+1], closing[Indizes+1]) > pmax(opening[Indizes], closing[Indizes])
+
+# Ist der Hammer schön? Ein Hammer ist schön, falls obige Fragen mit "Ja" beantwortet wurden
+SK <- R*Ober
+
+# Anzahl schöne Hammer 
+SchoenKonst <- sum(SK)
+
+
+# Kaufpreis = Closing Price der Kerze nach dem Hammer
+Kaufpreis <- closing[Indizes+1]
+
+
+# Anzahl gute Konstellationen
+
+GeileKonst <- 0
+Index <- Indizes[as.logical((rotetage>=a)*Ober)]
+ind <- length(Index)
+
+Klauf <- closing[Index+1]
+
+for(i in 1:ind){
+  l=0
+    while ( l <= min(T, length(opening) - Index[i]-1) ) {
+      if( closing[Index[i]+l+1] <= (1-alpha)*Klauf[i] ) {break}
+      if( closing[Index[i]+l+1] >= (1+beta)*Klauf[i]  ) {GeileKonst <- GeileKonst + 1; break}
+      l <- l+1
+    }
+}
+
+x[1] <- ind
+x[2] <- GeileKonst
+x[3] <- GeileKonst/ind
+
+return(x)
+  
+}
